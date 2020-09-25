@@ -51,13 +51,10 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-  int lane = 1;
-  double ref_vel = 49.5;
+  int lane = 1; // init lane
+  double ref_vel = 0.0;
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy]
-              (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-               uWS::OpCode opCode) {
+  h.onMessage([&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -101,17 +98,14 @@ int main() {
            *   sequentially every .02 seconds
            */
 
-          double pos_x;
-          double pos_y;
-          double angle;
           int path_size = previous_path_x.size();
-          //pre_size
 
-
-          if path_size>0{
+          if (path_size>0){
             car_s = end_path_s;
           }
           bool too_close = false;
+          bool car_in_left_lane = false;
+          bool car_in_right_lane = false;
 
           //find ref_v to use
           for(int i =0; i<sensor_fusion.size(); i++){
@@ -123,11 +117,20 @@ int main() {
               double check_speed = sqrt(vx*vx+vy*vy);
               double check_car_s = sensor_fusion[i][5];
 
-
               check_car_s += ((double)path_size*0.02*check_speed);
               if((check_car_s > car_s)&& ((check_car_s - car_s)< 30)){
-                ref_vel = 29.5;
-                ////////////////
+                //ref_vel = 29.5;
+                too_close = true;
+                if(lane > 0){
+                  lane -= lane;
+                }
+                else if (lane == 2){
+                  lane -= 1;
+                }
+                else{
+                  lane++;
+                }
+
               }
             }
 
@@ -137,23 +140,23 @@ int main() {
             ref_vel -= 0.224;
           }
           else if(ref_vel < 49.5){
-            ref_vel += 0.224
+            ref_vel += 0.224;
           }
-          //////////////////
 
           std::vector<double> ptsx;
           std::vector<double> ptsy;
 
-          ref_x = car_x;
-          ref_y = car_y;
-          ref_yaw = deg2rad(car_yaw);
+          double ref_x = car_x;
+          double ref_y = car_y;
+          double ref_yaw = deg2rad(car_yaw);
 
           if( path_size < 2){
-            double prev_car_x = car_x - cos(car_yaw)
-            double prev_car_y = car_y - sin(car_yaw)
+            double prev_car_x = car_x - cos(car_yaw);
+            double prev_car_y = car_y - sin(car_yaw);
 
             ptsx.push_back(prev_car_x);
             ptsx.push_back(car_x);
+
             ptsy.push_back(prev_car_y);
             ptsy.push_back(car_y);
 
@@ -165,7 +168,7 @@ int main() {
 
             double ref_x2 = previous_path_x[path_size-2];
             double ref_y2 = previous_path_y[path_size-2];
-            angle = atan2(ref_y-ref_y2,ref_x-ref_x2);
+            double angle = atan2(ref_y-ref_y2,ref_x-ref_x2);
 
             ptsx.push_back(ref_x2);
             ptsx.push_back(ref_x);
@@ -182,9 +185,9 @@ int main() {
           ptsx.push_back(next_wp1[0]);
           ptsx.push_back(next_wp2[0]);
 
-          ptsx.push_back(next_wp0[1]);
-          ptsx.push_back(next_wp1[1]);
-          ptsx.push_back(next_wp2[1]);
+          ptsy.push_back(next_wp0[1]);
+          ptsy.push_back(next_wp1[1]);
+          ptsy.push_back(next_wp2[1]);
 
           for(int i =0; i<ptsx.size(); i++){
             double shift_x = ptsx[i] - ref_x;
@@ -223,8 +226,8 @@ int main() {
             double x_ref = x_point;
             double y_ref = y_point;
 
-            x_point = x_ref + (x_ref * cos(ref_yaw)-y_ref*sin(ref_yaw));
-            y_point = y_ref + (x_ref * sin(ref_yaw)+y_ref*cos(ref_yaw));
+            x_point = ref_x + (x_ref * cos(ref_yaw)-y_ref*sin(ref_yaw));
+            y_point = ref_y + (x_ref * sin(ref_yaw)+y_ref*cos(ref_yaw));
 
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
@@ -232,32 +235,29 @@ int main() {
 
 /////////////////////////////////
 
-          if (path_size == 0) {
-            pos_x = car_x;
-            pos_y = car_y;
-            angle = deg2rad(car_yaw);
-          } else {
-            pos_x = previous_path_x[path_size-1];
-            pos_y = previous_path_y[path_size-1];
+          // if (path_size == 0) {
+          //   pos_x = car_x;
+          //   pos_y = car_y;
+          //   angle = deg2rad(car_yaw);
+          // } else {
+          //   pos_x = previous_path_x[path_size-1];
+          //   pos_y = previous_path_y[path_size-1];
 
 
-            double pos_x2 = previous_path_x[path_size-2];
-            double pos_y2 = previous_path_y[path_size-2];
-            angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
-          }
+          //   double pos_x2 = previous_path_x[path_size-2];
+          //   double pos_y2 = previous_path_y[path_size-2];
+          //   angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
+          // }
 
 
-          double dist_inc = 0.5;
-          for (int i = 0; i < 50-path_size; ++i) {
-            next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
-            next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
-            pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
-            pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
-          }
+          // double dist_inc = 0.5;
+          // for (int i = 0; i < 50-path_size; ++i) {
+          //   next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
+          //   next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
+          //   pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
+          //   pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
+          // }
 
-
-          msgJson["next_x"] = next_x_vals;
-          msgJson["next_y"] = next_y_vals;
 
           // double dist_inc = 0.5
           // for(int i=0; i<50; i++){
@@ -272,7 +272,7 @@ int main() {
           // }
 
 
-          // msgJson["next_x"] = next_x_vals;
+          msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
           auto msg = "42[\"control\","+ msgJson.dump()+"]";
