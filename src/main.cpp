@@ -14,6 +14,70 @@ using nlohmann::json;
 using std::string;
 using std::vector;
 
+double get_cost(float dist) {
+  /* code */
+  double cost  = (1 - exp(-1/dist));
+  return cost;
+}
+
+int find_next_lane(vector<vector<double >> sensor_fusion, double car_s, int path_size, int lane, double same_lane_cost){
+  int my_lane = lane;
+  double cost = 0.0;
+  vector<double> cost_total;
+  for(int j=0; j<2 ; j++){
+    cost = 0.0;
+    if(my_lane==0 || my_lane==2){
+      lane = 1;
+      j++;
+    }
+    else{
+      lane = j*2;
+    }
+    // int count = 0;
+    for(int i =0; i<sensor_fusion.size(); i++){
+      float d = sensor_fusion[i][6]; //ith cars
+      if(d < (2+4*lane+2) && d > (2+4*lane-2)){
+          //my lane
+        double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx+vy*vy);
+              double check_car_s = sensor_fusion[i][5];
+
+              check_car_s += ((double)path_size*0.02*check_speed);
+              if((check_car_s > car_s)&& ((check_car_s - car_s)< 30)){
+                //remain in the lane 2
+                cost += get_cost((check_car_s - car_s));
+                // count++;
+              }
+              if((check_car_s < car_s)&& ((car_s - check_car_s)< 10)) {
+                // there is a car at the back
+                cost += get_cost((car_s - check_car_s));
+                // count++;
+              }
+        }
+    }
+    cost_total.push_back(cost);
+    // std::cout << count << std::endl;
+    if(lane==1){ // if destination is lane 1
+      if(same_lane_cost <= cost_total[0]){
+        // std::cout << "current lane  == 0/2 no lane chage" << my_lane << std::endl;
+        return my_lane;
+      }
+      else{
+        // std::cout << "current lane  == 0/2 chage late to 1" << "1" << std::endl;
+        return 1;
+      }
+    }
+    else{
+      //return 0 lane number
+      int ans  = (cost_total[0] < cost_total[1]) ? ((cost_total[0] < same_lane_cost)?0:1):((cost_total[1] < same_lane_cost)?2:1) ;
+      // std::cout << "lane not = 1 " << ans << std::endl;
+      return ans;
+    }
+  }
+}
+
+
 int main() {
   uWS::Hub h;
 
@@ -111,6 +175,7 @@ int main() {
           for(int i =0; i<sensor_fusion.size(); i++){
             //car in my lane
             float d = sensor_fusion[i][6]; //ith cars
+            //////////////////////
             if(d < (2+4*lane+2) && d > (2+4*lane-2)){
               double vx = sensor_fusion[i][3];
               double vy = sensor_fusion[i][4];
@@ -120,17 +185,18 @@ int main() {
               check_car_s += ((double)path_size*0.02*check_speed);
               if((check_car_s > car_s)&& ((check_car_s - car_s)< 30)){
                 //ref_vel = 29.5;
-                too_close = true;
-                if(lane > 0){
-                  lane -= lane;
-                }
-                else if (lane == 2){
-                  lane -= 1;
+                // check the cost of right lane and left lane change
+                // if not slow down
+
+                double same_lane_cost  = get_cost((check_car_s - car_s));
+                int next_lane =   find_next_lane(sensor_fusion, car_s, path_size, lane,same_lane_cost);
+
+                if(next_lane == lane){
+                  too_close = true;
                 }
                 else{
-                  lane++;
+                  lane = next_lane;
                 }
-
               }
             }
 
@@ -139,7 +205,7 @@ int main() {
           if(too_close){
             ref_vel -= 0.224;
           }
-          else if(ref_vel < 49.5){
+          else if(ref_vel < 49.0){
             ref_vel += 0.224;
           }
 
@@ -232,45 +298,6 @@ int main() {
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
           }
-
-/////////////////////////////////
-
-          // if (path_size == 0) {
-          //   pos_x = car_x;
-          //   pos_y = car_y;
-          //   angle = deg2rad(car_yaw);
-          // } else {
-          //   pos_x = previous_path_x[path_size-1];
-          //   pos_y = previous_path_y[path_size-1];
-
-
-          //   double pos_x2 = previous_path_x[path_size-2];
-          //   double pos_y2 = previous_path_y[path_size-2];
-          //   angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
-          // }
-
-
-          // double dist_inc = 0.5;
-          // for (int i = 0; i < 50-path_size; ++i) {
-          //   next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
-          //   next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
-          //   pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
-          //   pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
-          // }
-
-
-          // double dist_inc = 0.5
-          // for(int i=0; i<50; i++){
-          //   double next_s = car_s + (1+i)*dist_inc;
-          //   double next_d = 6 ; // 1.5 lane side car_d
-          //   std::vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-
-          //   // next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
-          //   // next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
-          //   next_x_vals.push_back(xy[0]);
-          //   next_y_vals.push_back(xy[1]);
-          // }
-
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
