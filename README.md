@@ -143,3 +143,34 @@ still be compilable with cmake and make./
 ## How to write a README
 A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
 
+# Reflection:
+[I used workspace to complete my project ]
+
+In this project, I implemented the path planning algorithm. The basic code was provided in the git repo by udacity. The planning algorithm is implemented in src/main.cpp file. 
+
+This project is divided into parts:
+## Follow the path: 
+In this part, I tried to find the path for my car to follow in the correct lane and to notify when it finds a car in front of it within less than the safe distance range. This is done by the use of telemetry data and the sensor data given.
+
+
+## Behaviour:
+In this part of the project, I am using the deductions provided by the first part of the environment. This data will help us to make decisions for the car.
+* If we have a slow-moving car in front of our car then based on the sensor fusion we can detect if we want to switch lanes or slow down 
+* If we want to switch lanes then 
+  * I considered s=30m in front of the car as safe in the next lane 
+  * I also considered s=10 in the backside of the car as a safe distance to switch lanes.
+* Decide lanes: 
+  *  if we are in the side lanes i.e. lane 0 and 2 then we can only switch to the lane in the middle 1 or slow down, if there is a car in the middle lane then we will slow down in the same lane. 
+    -  This can be calculated by the comparing cost of changing the lanes
+    -  formula for cost is cost  = (1 - exp(-1/dist)) 
+    -  where distance is the distance between the next car and our Evo
+  *  If we are in the center lane then we have 3 choices either we can go in lane 2 or lane 0 or slow down in the same lane. The tie is broken by the cost function 
+    - whichever lane has the least cost we will go in that lane i.e 0 or 2 
+    - If there are cars in both lanes then we will remain in the same lane and slow down.
+ 
+## Trajectory:
+
+This code uses the trajectory based on the speed and lane output of the behavior and path points. 
+* Last 2 points of the previous path are used with the 3 points at a far distance to initialize the spline calculation. 
+* All these points are rotated and shifted to local car coordinates.
+* All the velocity are calculated from the behavior part of the code 
